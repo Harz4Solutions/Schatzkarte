@@ -54,7 +54,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
     String SHARED_PREF = "GeoLocations";
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         createMap();
@@ -62,22 +62,31 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
         locationManager = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
         Criteria criteria = new Criteria();
         provider = locationManager.getBestProvider(criteria, false);
-        locationManager.requestLocationUpdates(provider, 3000, 1, this);
-        Location location = locationManager.getLastKnownLocation(provider);
+        try{
+            locationManager.requestLocationUpdates(provider, 3000, 1, this);
+            Location location = locationManager.getLastKnownLocation(provider);
 
-        // Initialize the location fields
-        if (location != null) {
-            System.out.println("Provider " + provider + " has been selected.");
-            onLocationChanged(location);
-        } else {
-            System.out.println("Location not available");
+            // Initialize the location fields
+            if (location != null) {
+                System.out.println("Provider " + provider + " has been selected.");
+                onLocationChanged(location);
+            } else {
+                System.out.println("Location not available");
+            }
+        }catch (SecurityException e){
+
         }
 
         Button addMarker = (Button) findViewById(R.id.addMarker);
         addMarker.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Location loc = locationManager.getLastKnownLocation(provider);
+                Location loc = null;
+                try {
+                    loc = locationManager.getLastKnownLocation(provider);
+                } catch (SecurityException e){
+                    e.printStackTrace();
+                }
 
                 Drawable marker=getResources().getDrawable(android.R.drawable.star_big_on);
                 int markerWidth = marker.getIntrinsicWidth();
@@ -118,14 +127,22 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
     @Override
     protected void onResume() {
         super.onResume();
-        locationManager.requestLocationUpdates(provider, 3000, 1, this);
+        try {
+            locationManager.requestLocationUpdates(provider, 3000, 1, this);
+        } catch (SecurityException e){
+            e.printStackTrace();
+        }
     }
 
     /* Remove the locationlistener updates when Activity is paused */
     @Override
     protected void onPause() {
         super.onPause();
-        locationManager.removeUpdates(this);
+        try {
+            locationManager.removeUpdates(this);
+        } catch (SecurityException e){
+            e.printStackTrace();
+        }
     }
 
     @Override
