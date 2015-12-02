@@ -1,9 +1,12 @@
 package com.hartz4solutions.schatzkarte;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.location.Location;
+import android.widget.Toast;
 
-import com.google.gson.Gson;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.osmdroid.util.GeoPoint;
@@ -15,32 +18,59 @@ import java.util.ArrayList;
  * Created by simon on 10/31/2015.
  */
 public class MyLocations {
-    private ArrayList<Location> locations = new ArrayList<>();
+    private ArrayList<Integer> lon = new ArrayList<>();
+    private ArrayList<Integer> lat = new ArrayList<>();
+    String SHARED_PREF = "GeoLocations";
+    Context c;
 
-    public ArrayList<Location> getLocations(){
-        return locations;
-    }
     public void addLocation(Location location){
-        locations.add(location);
+        lon.add(new GeoPoint(location).getLatitudeE6());
+        lat.add(new GeoPoint(location).getLatitudeE6());
+        saveValues();
     }
 
-    public String serialize() {
-        // Serialize this class into a JSON string using GSON
-        Gson gson = new Gson();
-        return gson.toJson(this);
+    public MyLocations(Context c){
+        this.c=c;
+        SharedPreferences sharedPref = c.getSharedPreferences("schatzkarte.GeoPoints", Context.MODE_APPEND);
+        String serializedDataFromPreference = sharedPref.getString(SHARED_PREF, null);
+        if(serializedDataFromPreference!=null){
+            try{
+                JSONObject json = new JSONObject(serializedDataFromPreference);
+                JSONArray array = json.getJSONArray("points");
+                for (int i = 0; i < array.length(); i++) {
+                    JSONObject obj = array.getJSONObject(i);
+                    lon.add(obj.getInt("lon"));
+                    lat.add(obj.getInt("lat"));
+                }
+
+            }catch (Exception e){
+                SharedPreferences.Editor editor = sharedPref.edit();
+                editor.clear();
+                editor.commit();
+            }
+        }
     }
-    public void deserialize(String in){
-        Gson gson = new Gson();
-        locations =  gson.fromJson(in, MyLocations.class).getLocations();
+    public void saveValues(){
+        SharedPreferences sharedPref = c.getSharedPreferences("schatzkarte.GeoPoints", Context.MODE_PRIVATE);
+        JSONObject json = new JSONObject();
+        try {
+            json.put("points", toJsonArray());
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putString(SHARED_PREF, json.toString());
+        editor.commit();
     }
-    public ArrayList<JSONObject> toJsonArray(){
-        ArrayList<JSONObject> elements = new ArrayList();
-        for (Location l : locations) {
+    public JSONArray toJsonArray(){
+        JSONArray elements = new JSONArray();
+        for (int i = 0; i < lon.size(); i++) {
             JSONObject element = new JSONObject();
             try {
-                element.put("lat", new GeoPoint(l).getLatitudeE6());
-                element.put("lon", new GeoPoint(l).getLongitudeE6());
-                elements.add(element);
+                element.put("lat", lat.get(i));
+                element.put("lon", lon.get(i));
+                elements.put(element);
             } catch (JSONException e) {
                 e.printStackTrace();
             }

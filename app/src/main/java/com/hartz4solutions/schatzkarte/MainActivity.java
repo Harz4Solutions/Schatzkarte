@@ -51,7 +51,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
     LocationManager locationManager;
     String provider;
     IMapController controller;
-    String SHARED_PREF = "GeoLocations";
+    Location location = null;
 
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
@@ -60,34 +60,35 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
         createMap();
 
         locationManager = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
-        Criteria criteria = new Criteria();
-        provider = locationManager.getBestProvider(criteria, false);
+        provider = locationManager.isProviderEnabled("passive") ? "passive" : locationManager.isProviderEnabled("network") ? "network" : "gps";
+        System.out.println(provider);
         try{
-            locationManager.requestLocationUpdates(provider, 3000, 1, this);
-            Location location = locationManager.getLastKnownLocation(provider);
-
-            // Initialize the location fields
-            if (location != null) {
-                System.out.println("Provider " + provider + " has been selected.");
-                onLocationChanged(location);
-            } else {
-                System.out.println("Location not available");
-            }
+            location = locationManager.getLastKnownLocation(provider);
+            locationManager.requestLocationUpdates(
+                    provider, 1, 1, this);
         }catch (SecurityException e){
+            e.printStackTrace();
+            throw new RuntimeException();
+        }
 
+        // Initialize the location fields
+        if (location != null) {
+            System.out.println("Provider " + provider + " has been selected.");
+            onLocationChanged(location);
+        } else {
+            System.out.println("Not available");
         }
 
         Button addMarker = (Button) findViewById(R.id.addMarker);
         addMarker.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Location loc = null;
-                try {
-                    loc = locationManager.getLastKnownLocation(provider);
-                } catch (SecurityException e){
+                try{
+                    location = locationManager.getLastKnownLocation(provider);
+                }catch (SecurityException e){
                     e.printStackTrace();
+                    throw new RuntimeException();
                 }
-
                 Drawable marker=getResources().getDrawable(android.R.drawable.star_big_on);
                 int markerWidth = marker.getIntrinsicWidth();
                 int markerHeight = marker.getIntrinsicHeight();
@@ -97,27 +98,10 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
 
                 MyItemizedOverlay myItemizedOverlay = new MyItemizedOverlay(marker, resourceProxy);
                 map.getOverlays().add(myItemizedOverlay);
-                myItemizedOverlay.addItem(new GeoPoint(loc), "myPoint1", "myPoint1");
+                myItemizedOverlay.addItem(new GeoPoint(MainActivity.this.location), "myPoint1", "myPoint1");
 
-
-                SharedPreferences sharedPref = getApplicationContext().getSharedPreferences("schatzkarte.GeoPoints", Context.MODE_PRIVATE);
-                String serializedDataFromPreference = sharedPref.getString(SHARED_PREF, null);
-                MyLocations locations = new MyLocations();
-                if(serializedDataFromPreference!=null){
-                    try{
-                        locations.deserialize(serializedDataFromPreference);
-                    }catch (Exception e){
-                        SharedPreferences.Editor editor = sharedPref.edit();
-                        editor.clear();
-                        editor.commit();
-                    }
-                }
-
-                locations.addLocation(loc);
-
-                SharedPreferences.Editor editor = sharedPref.edit();
-                editor.putString(SHARED_PREF, locations.serialize() );
-                editor.commit();
+                MyLocations locations = new MyLocations(getApplicationContext());
+                locations.addLocation(MainActivity.this.location);
             }
         });
     }
@@ -128,7 +112,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
     protected void onResume() {
         super.onResume();
         try {
-            locationManager.requestLocationUpdates(provider, 3000, 1, this);
+            locationManager.requestLocationUpdates(provider, 1, 1, this);
         } catch (SecurityException e){
             e.printStackTrace();
         }
@@ -145,6 +129,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
         }
     }
 
+
+
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         //Menu item to submit height
@@ -153,19 +140,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
 
             @Override
             public boolean onMenuItemClick(MenuItem item) {
-                SharedPreferences sharedPref = getApplicationContext().getSharedPreferences("schatzkarte.GeoPoints", Context.MODE_PRIVATE);
-                String serializedDataFromPreference = sharedPref.getString(SHARED_PREF, null);
-                MyLocations locations = new MyLocations();
-                if(serializedDataFromPreference!=null){
-                    try{
-                        locations.deserialize(serializedDataFromPreference);
-                    }catch (Exception e){
-                        SharedPreferences.Editor editor = sharedPref.edit();
-                        editor.putString("locations", null );
-                        editor.commit();
-                    }
-                }
-                log(locations);
+                log();
                 return false;
             }
         });
@@ -205,7 +180,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
         map.getOverlays().add(treasureMapTilesOverlay);
     }
 
-    private void log(MyLocations locations) {
+    private void log() {
         Intent intent = new Intent("ch.appquest.intent.LOG");
 
         if (getPackageManager().queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY).isEmpty()) {
@@ -213,6 +188,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
             return;
         }
         //Creating a json object
+        MyLocations locations = new MyLocations(getApplicationContext());
         JSONObject json = new JSONObject();
         try {
             json.put("task", "Schatzkarte");
@@ -230,7 +206,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
     @Override
     public void onLocationChanged(Location location) {
         controller.setCenter(new GeoPoint(location));
-
+        this.location = location;
+        Toast.makeText(getApplicationContext(),location.getLongitude()+" - "+location.getLatitude(),Toast.LENGTH_SHORT);
+        System.out.println(location.getLongitude()+" - "+location.getLatitude());
     }
 
     @Override
